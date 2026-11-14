@@ -84,10 +84,25 @@ curl -s https://api.github.com/repos/OWNER/REPO/commits/<sha>/status \
 # taste-gate failure: GATE: FAIL 24 (round 1 of 3)
 ```
 
-That covers the pass/fail verdict and the failure count. Full per-check detail
-lives in the job log, which the REST API only serves to authenticated users
-(`403 Must have admin rights` on public repos too), and in the uploaded
-artifacts. To make the full detail machine-readable without a PAT, add a step
-that copies `gate.log` onto an orphan `ci-logs` branch (needs
-`permissions: contents: write`); then any run's log is at
-`https://raw.githubusercontent.com/OWNER/REPO/ci-logs/ci-gate.log`.
+That covers the pass/fail verdict and the failure count. The full per-check log
+is published **encrypted only**: the workflow wraps `gate.log` with
+RSA-OAEP-SHA256 + AES-256-GCM using the committed public key
+(`ci/gate-log-pub.pem`) and pushes only the ciphertext to an orphan
+`ci-logs` branch (force-pushed each run, so it never grows).
+
+The private key stays on the owner's device at
+`~/.taste-gate/gate-log-key.pem` (mode 600, never committed, never in Actions).
+Decrypt a run as an owner:
+
+```bash
+curl -s -o gate.log.enc \
+  https://raw.githubusercontent.com/OWNER/REPO/ci-logs/gate.log.enc
+node ci/decrypt-log.mjs gate.log.enc ~/.taste-gate/gate-log-key.pem gate.log
+```
+
+The branch also carries `sha.txt` and `run-id.txt` to tie a log to its run.
+Publishing needs `permissions: contents: write`. Anyone else sees ciphertext
+only; the commit status still shows the verdict and failure count, which is why
+private client work should use a private repo. Screenshot artifacts (`shots/`)
+still need an authenticated download; the encrypted log carries the
+check-by-check detail.

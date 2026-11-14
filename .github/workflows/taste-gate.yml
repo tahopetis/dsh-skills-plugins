@@ -139,22 +139,25 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Publish full gate log to the ci-logs branch
+      - name: Publish encrypted gate log to the ci-logs branch
+        # Only ciphertext is published. The private key lives on the owner's
+        # device (~/.taste-gate/gate-log-key.pem), never in the repo or Actions.
         if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          if [ -f gate.log ]; then
+            node ci/encrypt-log.mjs gate.log ci/gate-log-pub.pem /tmp/gate.log.enc
+          else
+            node ci/encrypt-log.mjs /dev/null ci/gate-log-pub.pem /tmp/gate.log.enc
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          mkdir -p /tmp/ci-log
-          if [ -f gate.log ]; then cp gate.log /tmp/ci-log/gate.log; else echo "gate.log was never produced" > /tmp/ci-log/gate.log; fi
           git checkout --orphan ci-logs
           git rm -rf . >/dev/null 2>&1 || true
-          cp /tmp/ci-log/gate.log gate.log
+          cp /tmp/gate.log.enc gate.log.enc
           echo "${{ github.sha }}" > sha.txt
           echo "${{ github.run_id }}" > run-id.txt
-          git add gate.log sha.txt run-id.txt
-          git commit -m "ci: gate log for ${{ github.sha }} (run ${{ github.run_id }})"
+          git add gate.log.enc sha.txt run-id.txt
+          git commit -m "ci: encrypted gate log for ${{ github.sha }} (run ${{ github.run_id }})"
           git push --force origin HEAD:ci-logs
-          echo "log published: https://raw.githubusercontent.com/${{ github.repository }}/ci-logs/gate.log"
+          echo "encrypted log: https://raw.githubusercontent.com/${{ github.repository }}/ci-logs/gate.log.enc"
