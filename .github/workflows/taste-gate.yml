@@ -44,7 +44,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
   statuses: write
 
 jobs:
@@ -138,3 +138,23 @@ jobs:
             .taste-skill/
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Publish full gate log to the ci-logs branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p /tmp/ci-log
+          if [ -f gate.log ]; then cp gate.log /tmp/ci-log/gate.log; else echo "gate.log was never produced" > /tmp/ci-log/gate.log; fi
+          git checkout --orphan ci-logs
+          git rm -rf . >/dev/null 2>&1 || true
+          cp /tmp/ci-log/gate.log gate.log
+          echo "${{ github.sha }}" > sha.txt
+          echo "${{ github.run_id }}" > run-id.txt
+          git add gate.log sha.txt run-id.txt
+          git commit -m "ci: gate log for ${{ github.sha }} (run ${{ github.run_id }})"
+          git push --force origin HEAD:ci-logs
+          echo "log published: https://raw.githubusercontent.com/${{ github.repository }}/ci-logs/gate.log"

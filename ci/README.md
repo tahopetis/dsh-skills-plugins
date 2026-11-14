@@ -72,3 +72,22 @@ For a framework project, the workflow runs `npm ci` + `npm run build` when a
 Pinned ref + fixed widths means the same page should produce the same verdict
 locally and in CI. Compare with the on-device Tier 0/1 tools
 (`qa/`, `copy-lint.mjs`); if they ever disagree with CI, **CI wins**.
+
+## Reading the verdict without a token
+
+The workflow publishes the gate's final line as a **commit status**
+(`context: taste-gate`), so a public repo's result is readable anonymously:
+
+```bash
+curl -s https://api.github.com/repos/OWNER/REPO/commits/<sha>/status \
+  | jq -r '.statuses[] | "\(.context) \(.state): \(.description)"'
+# taste-gate failure: GATE: FAIL 24 (round 1 of 3)
+```
+
+That covers the pass/fail verdict and the failure count. Full per-check detail
+lives in the job log, which the REST API only serves to authenticated users
+(`403 Must have admin rights` on public repos too), and in the uploaded
+artifacts. To make the full detail machine-readable without a PAT, add a step
+that copies `gate.log` onto an orphan `ci-logs` branch (needs
+`permissions: contents: write`); then any run's log is at
+`https://raw.githubusercontent.com/OWNER/REPO/ci-logs/ci-gate.log`.
