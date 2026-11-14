@@ -1,0 +1,122 @@
+name: taste-gate
+
+# Runs the skill's real finish gate (tasteskill 2.5.1) against a page.
+# Requires: no secrets, no npm packages for the gate itself; Google Chrome is
+# preinstalled on ubuntu-latest (/usr/bin/google-chrome).
+#
+# Copy this file to .github/workflows/taste-gate.yml in the project repo.
+
+on:
+  workflow_dispatch:
+    inputs:
+      page:
+        description: "Page to check, relative to the repo root (e.g. index.html or dist/index.html)"
+        required: false
+        default: index.html
+      root:
+        description: "Built-site root, for a page whose links start at the site root (e.g. dist). Empty for a plain HTML page."
+        required: false
+        default: ""
+      kind:
+        description: "Page kind: software | gaming | tech | product | service | place"
+        required: false
+        default: ""
+      category:
+        description: "What is sold (used by the checker's copy rules)"
+        required: false
+        default: ""
+      primary:
+        description: "The page's one main action (e.g. 'Book a room')"
+        required: false
+        default: ""
+  push:
+    branches: [main, master]
+    paths:
+      - "**.html"
+      - "assets/**"
+      - "public/**"
+      - "src/**"
+      - "ci/**"
+      - ".github/workflows/taste-gate.yml"
+
+concurrency:
+  group: taste-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      # Pin the skill so CI and local runs agree byte for byte.
+      SKILL_REPO: Leonxlnx/taste-skill
+      SKILL_REF: f6b76575f949707b4e3c37cd86cb44b0b98643e8
+      PAGE: ${{ inputs.page || 'index.html' }}
+      ROOT: ${{ inputs.root || '' }}
+      KIND: ${{ inputs.kind || '' }}
+      CATEGORY: ${{ inputs.category || '' }}
+      PRIMARY: ${{ inputs.primary || '' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Confirm Chrome
+        run: google-chrome --version
+
+      - name: Fetch the skill at the pinned commit
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-skill
+          curl -fsSL --retry 3 \
+            "https://codeload.github.com/${SKILL_REPO}/tar.gz/${SKILL_REF}" \
+            -o skill.tar.gz
+          tar -xzf skill.tar.gz --wildcards --strip-components=3 -C .ci-skill \
+            '*/skills/taste-skill/*'
+          test -f .ci-skill/scripts/gate.mjs
+          echo "skill commit: ${SKILL_REF}"
+          ls .ci-skill
+
+      - name: Build the project (if it has one)
+        if: hashFiles('package.json') != ''
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+          if node -e "process.exit(require('./package.json').scripts?.build ? 0 : 1)"; then
+            npm run build
+          else
+            echo "no build script; assuming static output"
+          fi
+
+      - name: Arm and run the gate
+        id: gate
+        run: |
+          set -euo pipefail
+          export SKILL_DIR="$PWD/.ci-skill"
+          set +e
+          bash ci/run-gate.sh
+          code=$?
+          set -e
+          grep -E '^GATE:' gate.log | tail -1 >> "$GITHUB_STEP_SUMMARY" || true
+          exit "$code"
+
+      - name: Upload gate artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: taste-gate-${{ github.run_id }}
+          path: |
+            gate.log
+            shots/
+            .taste-skill/
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,0 +1,8 @@
+.taste-skill/build.json
+.taste-skill/gate.json
+.taste-skill/gate-blocks.json
+.taste-skill/*.tmp
+shots/
+gate.log
+skill.tar.gz
+.ci-skill/

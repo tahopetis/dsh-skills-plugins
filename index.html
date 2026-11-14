@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sample page — mediocre on purpose</title>
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 8px; color: #111; }
+  .wrap { max-width: 900px; }
+  h1 { font-size: 28px; margin: 8px 0; }
+  h2 { font-size: 20px; margin: 8px 0; }
+  h3 { font-size: 17px; margin: 8px 0; }
+  p { margin: 8px 0; }
+  .wide-metrics {
+    /* Deliberately wider than every frame (1440 max) to trigger overflow-x
+       and the content-edges heuristic at 390px. */
+    width: 1600px; background: #fff2b8; padding: 8px;
+  }
+  .tiny {
+    /* 20x20: below the 24px FAIL threshold at 390px. */
+    width: 20px; height: 20px; padding: 0; font-size: 9px; line-height: 1;
+  }
+  .hero-img { width: 120px; height: 80px; }
+  footer { color: #666; font-size: 12px; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- heading order is wrong on purpose: h2 before h1, then a 1 -> 3 skip -->
+  <h2>Performance metrics</h2>
+  <h1>Sample page for the QA harness</h1>
+  <h3>Details</h3>
+
+  <p>
+    Lorem ipsum dolor sit amet, consectetur adipiscing elit. This paragraph is
+    placeholder copy on purpose, so the placeholders check has something to find.
+  </p>
+
+  <!-- image loads but has no alt attribute -->
+  <p>
+    <img class="hero-img" src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='120'%20height='80'%3E%3Crect%20width='120'%20height='80'%20fill='%23cde'/%3E%3C/svg%3E">
+    the image above is missing its alt attribute.
+  </p>
+
+  <!-- deliberately broken image: naturalWidth will be 0 -->
+  <p><img src="missing-image.png" alt="Deliberately broken image"></p>
+
+  <!-- an image that is actually fine, to keep the sample from being all failure -->
+  <p>
+    <img src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='64'%20height='48'%3E%3Crect%20width='64'%20height='48'%20fill='%23bef'/%3E%3C/svg%3E" alt="A valid blue placeholder">
+    this image has alt text and loads.
+  </p>
+
+  <p>
+    <button class="tiny" aria-label="Close">x</button>
+    this button is a deliberately tiny 20x20 tap target.
+  </p>
+</div>
+
+<!-- Wider than the viewport on purpose. -->
+<div class="wide-metrics">
+  <strong>Wide metrics strip</strong> — 1600px wide on purpose to trigger overflow-x.
+</div>
+
+<div class="wrap">
+  <footer>
+    Sample page for qa/harness.html. It intentionally fails several checks.
+  </footer>
+</div>
+
+<script>
+  // Deliberately uncaught: gives the js-errors check a real error to report.
+  setTimeout(function () {
+    throw new Error('sample page: deliberate uncaught error for js-errors');
+  }, 100);
+</script>
+</body>
+</html>
