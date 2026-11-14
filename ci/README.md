@@ -106,3 +106,31 @@ only; the commit status still shows the verdict and failure count, which is why
 private client work should use a private repo. Screenshot artifacts (`shots/`)
 still need an authenticated download; the encrypted log carries the
 check-by-check detail.
+
+## Privacy model
+
+| Repo visibility | What is public | How the owner reads the log |
+|---|---|---|
+| Public | ciphertext (`gate.log.enc`), `sha.txt`, `run-id.txt`, and the commit status (`GATE: FAIL n`) | curl the raw ciphertext + decrypt |
+| **Private (recommended for client work)** | nothing | `git fetch origin ci-logs` over SSH, then decrypt |
+
+Reading a private repo's encrypted log needs no token, because the SSH key
+already grants git access:
+
+```bash
+git fetch origin ci-logs
+git show FETCH_HEAD:gate.log.enc > /tmp/gate.log.enc
+node ci/decrypt-log.mjs /tmp/gate.log.enc ~/.taste-gate/gate-log-key.pem /tmp/gate.log
+grep '^GATE:' /tmp/gate.log
+```
+
+Note on deletion: removing the `ci-logs` branch with `git push --delete` hides
+it from the UI but GitHub keeps unreachable commits reachable by SHA until it
+garbage-collects them. The pre-encryption plaintext log published in earlier
+runs (commit `96858b7`) therefore remains fetchable by SHA while the repo is
+public. Flipping the repo to **private** removes that exposure immediately
+without needing to rewrite history.
+
+The private key lives only at `~/.taste-gate/gate-log-key.pem` (mode 600). If it
+is lost, generate a new pair and commit the new public key; old logs stay
+unreadable.
